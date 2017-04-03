@@ -53,9 +53,9 @@ float getHeading() {
 }
 
 void magCalibrate() {
-  pinMode(6,INPUT_PULLUP);
-  if(digitalRead(6))
-    return;
+//  pinMode(6,INPUT_PULLUP);
+//  if(digitalRead(6))
+//    return;
   short x_max, x_min, y_max, y_min;
   short magVals[3];
   getMagData(magVals);

@@ -2,22 +2,27 @@
 #include "HMC5883L.h"
 #include "L298N.h"
 #include "NewPing.h"
+#include "PID.h"
 #include <Servo.h>
 
 // Left Motor
+#define EN1  10
 #define OUT1 11
 #define OUT2 12
 // Right Motor
+#define EN2  9
 #define OUT3 14
 #define OUT4 13
 L298 left, right;
 // Front Servo
-#define FSERVO 10
-#define FLATVAL_F 100
+#define FSERVO 8
+#define FLATVAL_F 1540
+#define RVAL_F 700
 Servo front;
 // Back Servo
 #define BSERVO 15
-#define FLATVAL_B 49
+#define FLATVAL_B 1025
+#define RVAL_B 1950
 Servo back;
 // Front Sonar
 #define FSONAR_TRIG 22
@@ -72,41 +77,45 @@ void setup() {
   //Set the sample rate to 100 hz
   itgWrite(itgAddress, SMPLRT_DIV, 9);
   initmag();
-  magCalibrate();
-  left.assignPins(OUT2,OUT1);
-  right.assignPins(OUT4,OUT3);
+//  magCalibrate();
+  left.assignPins(EN1,OUT1,OUT2);
+  right.assignPins(EN2,OUT3,OUT4);
   front.attach(FSERVO);
   back.attach(BSERVO);
   heading = getHeading();
   init_heading = getHeading();
-//  left.move(255);
-//  right.move(255);
-//  while(1) {
-//    Serial.println(getHeading());
-//  }
+}
+
+float getHeading2() {
+  return getHeading() - init_heading;
 }
 
 void loop() {
   unsigned long dt = micros()-timer;
   timer = micros();
   float prevdps = dps;
-  dps = (float)readZ() / 14.375;
+  dps = (float)-readZ() / 14.375;
   float trapezoid = (prevdps+dps)*(float)dt*0.0000005;
-  heading = (heading-trapezoid)*0.98+getHeading()*0.02;
+  heading = (heading+trapezoid)*0.98+getHeading2()*0.02;
   ctrlFrontServo(0);
   ctrlBackServo(0);
+  int val = PIDcompute(heading-0,dps);
+  int lpow = 80 - val;
+  int rpow = 80 + val;
+  left.move(lpow);
+  right.move(rpow);
 }
 
 // front > = CCW
 // back > = CCW
 // CW = <
 void ctrlFrontServo(int goal) {
-  fangle = FLATVAL_F + heading - goal - init_heading;
-  front.write(fangle);
+  int fangle = map(goal - heading,0,90,FLATVAL_F,RVAL_F);
+  front.writeMicroseconds(fangle);
 }
 
 void ctrlBackServo(int goal) {
-  bangle = FLATVAL_B + heading - goal - init_heading;
-  back.write(bangle);
+  int bangle = map(goal + heading,0,90,FLATVAL_B,RVAL_B);
+  back.writeMicroseconds(bangle);
 }
 

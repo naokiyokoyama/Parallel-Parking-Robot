@@ -1,5 +1,5 @@
 /*
-  L298N.h - Library for utilizing the L298 H-bridge.
+  L298.h - Library for utilizing the L298 H-bridge.
   Created September 5th, 2014.
   Naoki Yokoyama
 */
@@ -12,7 +12,7 @@
 class L298 {
   public:
   L298();
-  void assignPins(int Input1Pin, int Input2Pin);
+  void assignPins(int EnablePin, int Input1Pin, int Input2Pin);
   void move(int power);
   void brake();
 
