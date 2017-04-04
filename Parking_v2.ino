@@ -1,9 +1,9 @@
+#include <Servo.h>
 #include "ITG3200.h"
 #include "HMC5883L.h"
 #include "L298N.h"
 #include "NewPing.h"
 #include "PID.h"
-#include <Servo.h>
 
 // Left Motor
 #define EN1  10
@@ -13,7 +13,7 @@
 #define EN2  9
 #define OUT3 14
 #define OUT4 13
-L298 left, right;
+L298 left(EN1,OUT1,OUT2), right(EN2,OUT3,OUT4);
 // Front Servo
 #define FSERVO 8
 #define FLATVAL_F 1540
@@ -38,72 +38,145 @@ NewPing bsonar(BSONAR_TRIG,BSONAR_ECHO,MAX_DISTANCE);
 // Right Encoder
 #define RENCODER 2
 
-volatile unsigned int lpulse, rpulse;
-volatile unsigned long ltimer, rtimer;
+volatile int lpulse, rpulse;
+volatile unsigned long ltimer, rtimer,lcount,rcount;
 
 float heading,dps,prevdps,init_heading;                                                
 unsigned long timer;
 int fangle, bangle;
 
 void risingTrig_l() {
-  ltimer = millis();
+  ltimer = micros();
+  lcount++;
   attachInterrupt(LENCODER, fallingTrig_l, FALLING);
 }
 
 void fallingTrig_l() {
-  lpulse = millis() - ltimer;
+  lpulse = micros() - ltimer;
   attachInterrupt(LENCODER, risingTrig_l, RISING);
 }
 
 void risingTrig_r() {
-  rtimer = millis();
+  rtimer = micros();
+  rcount++;
   attachInterrupt(RENCODER, fallingTrig_r, FALLING);
 }
 
 void fallingTrig_r() {
-  rpulse = millis() - rtimer;
+  rpulse = micros() - rtimer;
   attachInterrupt(RENCODER, risingTrig_r, RISING);
 }
 
 void setup() {
   Serial.begin(115200);
-  Wire.begin();
   attachInterrupt(LENCODER, risingTrig_l, RISING);
   attachInterrupt(RENCODER, risingTrig_r, RISING);
-  // Reset ITG3200
-  itgWrite(itgAddress,0x3E,0x80);
-  //Set the gyroscope scale for the outputs to +/-2000 degrees per second
-  itgWrite(itgAddress, DLPF_FS, (DLPF_FS_SEL_0|DLPF_FS_SEL_1|DLPF_CFG_0));
-  //Set the sample rate to 100 hz
-  itgWrite(itgAddress, SMPLRT_DIV, 9);
-  initmag();
+  Wire.begin();
+  init_itg();
+  init_mag();
 //  magCalibrate();
-  left.assignPins(EN1,OUT1,OUT2);
-  right.assignPins(EN2,OUT3,OUT4);
   front.attach(FSERVO);
   back.attach(BSERVO);
   heading = getHeading();
   init_heading = getHeading();
+  driveToSpot();
+  pivotRight(35);
+  frontBump();
+  pivotSpin(-35);
+  left.brake();
+  right.brake();
+}
+
+void driveToSpot() {
+  static unsigned long timer = millis();
+  int base;
+  bool accel = 0;
+  while(1) {
+    if(!accel && base == 80) {
+      accel = 1;
+      lcount = 0;
+    }
+    updateHeading();
+    ctrlFrontServo(90);
+    ctrlBackServo(90);
+    base = (millis() - timer)/150*5;
+    base = constrain(base,0,80);
+    driveStraight(base,0.0);
+    unsigned long cm = fsonar.ping_cm();
+    if(cm>15 && accel && lcount>12) {
+      Serial.println(lcount);
+      return;
+    }
+  }
 }
 
 float getHeading2() {
   return getHeading() - init_heading;
 }
 
-void loop() {
+void loop() {}
+
+void updateHeading() {
   unsigned long dt = micros()-timer;
   timer = micros();
   float prevdps = dps;
   dps = (float)-readZ() / 14.375;
   float trapezoid = (prevdps+dps)*(float)dt*0.0000005;
   heading = (heading+trapezoid)*0.98+getHeading2()*0.02;
-  ctrlFrontServo(0);
-  ctrlBackServo(0);
-  int val = PIDcompute(heading-0,dps);
-  int lpow = 80 - val;
-  int rpow = 80 + val;
+}
+
+void driveStraight(int base,float goal) {
+  int val = imuDrive.compute(heading-goal,dps);
+  int lpow = base - val;
+  int rpow = base + val;
   left.move(lpow);
   right.move(rpow);
+}
+
+void pivotRight(float goal) {
+  while(abs(heading-goal)>2) {
+    ctrlFrontServo(0);
+    ctrlBackServo(0);
+    updateHeading();
+    int val = imuDrive.compute(heading-goal,dps);
+    int lpow = -1.6*val;
+    int rpow = 0;
+    left.move(lpow);
+    right.move(rpow);
+  }
+}
+
+void pivotSpin(float goal) {
+  while(abs(heading-goal)>2) {
+    updateHeading();
+    ctrlFrontServo(0);
+    ctrlBackServo(0);
+    int val = imuDrive.compute(heading-goal,dps);
+    int lpow = -val*1.3;
+    int rpow = val*1.3;
+    left.move(lpow);
+    right.move(rpow);
+  }
+}
+
+void frontBump() {
+  float orig_heading=heading;
+  lcount = 0;
+  while(1) {
+    int cm = fsonar.ping_cm();
+    while(cm>8) {
+      updateHeading();
+      ctrlFrontServo(0);
+      ctrlBackServo(0);
+      int val = (5*(cm-8),0,60);
+      driveStraight(45+val,orig_heading);
+      cm = fsonar.ping_cm();
+    }
+    left.brake();
+    right.brake();
+    if(micros()>ltimer+1000000 && lcount>5)
+      return;
+  }
 }
 
 // front > = CCW
@@ -118,4 +191,3 @@ void ctrlBackServo(int goal) {
   int bangle = map(goal + heading,0,90,FLATVAL_B,RVAL_B);
   back.writeMicroseconds(bangle);
 }
-

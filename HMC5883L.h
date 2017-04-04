@@ -6,7 +6,7 @@
 short x_offset, y_offset;
 float scale;
 
-void initmag() {
+void init_mag() {
   Wire.begin();
   Wire.beginTransmission(address); //open communication with HMC5883
   Wire.write(0x02); //select mode register

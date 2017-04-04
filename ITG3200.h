@@ -77,9 +77,13 @@ unsigned char itgRead(char address, char registerAddress)
   return data;
 }
 
-bool beginITG3200() {
-  uint8_t deviceid = itgRead(itgAddress,0x00);
-  return deviceid == itgAddress;
+void init_itg() {
+  // Reset ITG3200
+  itgWrite(itgAddress,0x3E,0x80);
+  // Set the gyroscope scale for the outputs to +/-2000 degrees per second
+  itgWrite(itgAddress, DLPF_FS, (DLPF_FS_SEL_0|DLPF_FS_SEL_1|DLPF_CFG_0));
+  // Set the sample rate to 100 hz
+  itgWrite(itgAddress, SMPLRT_DIV, 9);
 }
 
 //This function is used to read the X-Axis rate of the gyroscope. The function returns the ADC value from the Gyroscope
