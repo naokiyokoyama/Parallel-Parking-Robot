@@ -75,6 +75,10 @@ void setup() {
   init_itg();
   init_mag();
 //  magCalibrate();
+  while(1) {
+    Serial.println(bsonar.read_cm());
+    delay(10);
+  }
   front.attach(FSERVO);
   back.attach(BSERVO);
   heading = getHeading();
@@ -82,7 +86,14 @@ void setup() {
   driveToSpot();
   pivotRight(35);
   frontBump();
+  Serial.println("1");
   pivotSpin(-35);
+  Serial.println("2");
+  backBump();
+  Serial.println("3");
+  pivotSpin(-35);
+  Serial.println("4");
+  frontBump();
   left.brake();
   right.brake();
 }
@@ -102,7 +113,7 @@ void driveToSpot() {
     base = (millis() - timer)/150*5;
     base = constrain(base,0,80);
     driveStraight(base,0.0);
-    unsigned long cm = fsonar.ping_cm();
+    unsigned long cm = fsonar.read_cm();
     if(cm>15 && accel && lcount>12) {
       Serial.println(lcount);
       return;
@@ -152,8 +163,8 @@ void pivotSpin(float goal) {
     ctrlFrontServo(0);
     ctrlBackServo(0);
     int val = imuDrive.compute(heading-goal,dps);
-    int lpow = -val*1.3;
-    int rpow = val*1.3;
+    int lpow = -val;
+    int rpow = val;
     left.move(lpow);
     right.move(rpow);
   }
@@ -162,19 +173,45 @@ void pivotSpin(float goal) {
 void frontBump() {
   float orig_heading=heading;
   lcount = 0;
+  int base = 45;
+  unsigned long timer = millis();
   while(1) {
-    int cm = fsonar.ping_cm();
-    while(cm>8) {
+    while(fsonar.read_cm()>8) {
       updateHeading();
       ctrlFrontServo(0);
       ctrlBackServo(0);
-      int val = (5*(cm-8),0,60);
-      driveStraight(45+val,orig_heading);
-      cm = fsonar.ping_cm();
+      driveStraight(base,orig_heading);
+      if(micros()>ltimer+400000) {
+        ltimer = micros();
+        base+=8;
+      }
     }
     left.brake();
     right.brake();
     if(micros()>ltimer+1000000 && lcount>5)
+      return;
+  }
+}
+
+void backBump() {
+  float orig_heading=heading;
+  lcount = 0;
+  int base = -45;
+  unsigned long timer = millis();
+  while(1) {
+    while(bsonar.read_cm()>8) {
+      updateHeading();
+      ctrlFrontServo(0);
+      ctrlBackServo(0);
+      driveStraight(base,orig_heading);
+      if(micros()>ltimer+400000) {
+        ltimer = micros();
+        base-=8;
+      }
+    }
+    left.brake();
+    right.brake();
+    if(micros()>ltimer+1000000 && lcount>1)
       return;
   }
 }

@@ -42,8 +42,8 @@ class PID {
 const float kp1 = 5.0;
 const float ki1 = 0.0000;
 const float kd1 = 1.1;
-const float minI1 =  -20.0 / ki1;
-const float maxI1 = 20.0 / ki1;
+const float minI1 =  -25.0 / ki1;
+const float maxI1 = 25.0 / ki1;
 PID imuDrive(kp1,ki1,kd1,minI1,maxI1);
 
 const float kp2 = 0.006;

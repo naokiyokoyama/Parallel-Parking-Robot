@@ -360,3 +360,13 @@ unsigned int NewPing::convert_in(unsigned int echoTime) {
 	return NewPingConvert(echoTime, US_ROUNDTRIP_IN); // Convert uS to inches.
 #endif
 }
+
+unsigned long NewPing::read_cm() {
+  static unsigned long cm, timer;
+  if(millis()>timer) {
+    timer = millis()+30;
+    cm = ping_cm();
+  }
+  return cm;
+}
+
