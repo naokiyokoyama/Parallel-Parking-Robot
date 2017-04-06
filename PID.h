@@ -13,9 +13,9 @@ class PID {
       I_tot = minI;
     else if(I_tot > maxI)
       I_tot = maxI;
-    float P = kp*error;
-    float I = ki*I_tot;
-    float D = kd*error_rate;
+    P = kp*error;
+    I = ki*I_tot;
+    D = kd*error_rate;
     return P + I + D;
   }
   int compute(float error) {
@@ -25,18 +25,15 @@ class PID {
     curr = micros();
     float D_term = (error-eprev)/((float)(curr-prev));
     I_tot += error;
-    if(I_tot < minI)
-      I_tot = minI;
-    else if(I_tot > maxI)
-      I_tot = maxI;
-    float P = kp*error;
-    float I = ki*I_tot;
-    float D = kd*D_term;
+    I_tot = constrain(I_tot,minI,maxI);
+    P = kp*error;
+    I = ki*I_tot;
+    D = kd*D_term;
     eprev = error;
     return P + I + D;
   }
 
-  float kp,ki,kd,minI,maxI,I_tot; 
+  float kp,ki,kd,minI,maxI,I_tot,P,I,D; 
 };
 
 const float kp1 = 5.0;
@@ -46,10 +43,10 @@ const float minI1 =  -25.0 / ki1;
 const float maxI1 = 25.0 / ki1;
 PID imuDrive(kp1,ki1,kd1,minI1,maxI1);
 
-const float kp2 = 0.006;
-const float ki2 = 0.0000;
-const float kd2 = 0.0;
-const float minI2 =  -20.0 / ki1;
-const float maxI2 = 20.0 / ki1;
-PID encDrive(kp2,ki2,kd2,minI2,maxI2);
-
+const float kp2 = 1.2*1000000; //data3 = 2
+const float ki2 = 40000;
+const float kd2 = 0;//6*10000000000; //.02
+const float minI2 =  -200.0/ki2;
+const float maxI2 = 200.0/ki2;
+PID encL(kp2,ki2,kd2,minI2,maxI2);
+PID encR(kp2,ki2,kd2,minI2,maxI2);
