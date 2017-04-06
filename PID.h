@@ -43,10 +43,17 @@ const float minI1 =  -25.0 / ki1;
 const float maxI1 = 25.0 / ki1;
 PID imuDrive(kp1,ki1,kd1,minI1,maxI1);
 
-const float kp2 = 1.2*1000000; //data3 = 2
-const float ki2 = 40000;
+const float kp2 = 0.8*1000000; //data3 = 2
+const float ki2 = 210000;
+//const float kp2 = 1.3*1000000; //data3 = 2
+//const float ki2 = 220000;
 const float kd2 = 0;//6*10000000000; //.02
 const float minI2 =  -200.0/ki2;
 const float maxI2 = 200.0/ki2;
 PID encL(kp2,ki2,kd2,minI2,maxI2);
-PID encR(kp2,ki2,kd2,minI2,maxI2);
+const float kp3 = 0.9*1000000; //data3 = 2
+const float ki3 = 230000;
+const float kd3 = 0;//6*10000000000; //.02
+const float minI3 =  -200.0/ki3;
+const float maxI3 = 200.0/ki3;
+PID encR(kp3,ki3,kd3,minI3,maxI3);

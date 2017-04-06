@@ -364,7 +364,7 @@ unsigned int NewPing::convert_in(unsigned int echoTime) {
 unsigned long NewPing::read_cm() {
   static unsigned long cm, timer;
   if(millis()>timer) {
-    timer = millis()+30;
+    timer = millis()+40;
     cm = ping_cm();
   }
   return cm;

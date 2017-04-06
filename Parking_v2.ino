@@ -70,40 +70,16 @@ void fallingTrig_r() {
 void setup() {
   Serial.begin(9600);
   attachInterrupt(LENCODER, risingTrig_l, RISING);
-  unsigned long timer;
-  int prev,curr,val;
-  float prev2,curr2;
-  while(millis()<5000) {
-    if(micros() > ltimer+50000) {
-      lpulse = 100000;
-    }
-    prev = curr;
-    curr = lpulse;
-    if(prev!=curr) {
-      int dt = micros()-timer;
-      prev2 = curr2;
-      curr2 = 1.0/(float)lpulse-1.0/8000.0;
-      float derror = (curr2-prev2)/(float)dt;
-      val = encL.compute(curr2,derror);
-      timer = micros();
-      left.move(120-val);
-      Serial.print(1.0/(float)lpulse*100000000);
-      Serial.print("\t");
-      Serial.print(micros());
-      Serial.print("\t");
-      Serial.print(val);
-      Serial.print("\t");
-      Serial.print(encL.D);
-      Serial.print("\n");
-    }
-  }
-  left.brake();
-  right.brake();
-  while(1);
   attachInterrupt(RENCODER, risingTrig_r, RISING);
   Wire.begin();
   init_itg();
   init_mag();
+//  while(millis()<5000) {
+//    lturn(28000);
+//  }
+//  left.brake();
+//  right.brake();
+//  while(1);
 //  magCalibrate();
   front.attach(FSERVO);
   back.attach(BSERVO);
@@ -113,7 +89,7 @@ void setup() {
   pivotRight(35);
   frontBump();
   Serial.println("1");
-  pivotSpin(-35);
+  spinBursts(-35);
   Serial.println("2");
   left.brake();
   right.brake();
@@ -121,7 +97,69 @@ void setup() {
 
 void loop() {}
 
-void driveToSpot() {
+int lturn(float goal) {
+  static int prev,curr,val;
+  static float prev2,curr2;
+  if(micros() > ltimer+100000) {
+    lpulse = 100000;
+  }
+  prev = curr;
+  curr = lpulse;
+  if(prev!=curr) {
+    prev2 = curr2;
+    curr2 = 1.0/(float)lpulse-1.0/abs(goal);
+    val = encL.compute(curr2);
+//    if(val > 120)
+//      val = 0;
+    int lpow;
+    if(goal>0) {
+      lpow = 80-val;
+      if(lpow<0)
+        lpow = 0;
+    } else {
+      lpow = val-80;
+      if(lpow>0)
+        lpow = 0;
+    }
+    return lpow;
+    Serial.print(micros());
+    Serial.print("\t");
+    Serial.println(lpulse);
+  }
+}
+
+int rturn(float goal) {
+  static int prev,curr,val;
+  static float prev2,curr2;
+  if(micros() > rtimer+100000) {
+    rpulse = 100000;
+  }
+  prev = curr;
+  curr = rpulse;
+  if(prev!=curr) {
+    prev2 = curr2;
+    curr2 = 1.0/(float)rpulse-1.0/abs(goal);
+    val = encR.compute(curr2);
+//    if(val > 120)
+//      val = 0;
+    int rpow;
+    if(goal>0) {
+      rpow = 80-val;
+      if(rpow<0)
+        rpow = 0;
+    } else {
+      rpow = val-80;
+      if(rpow>0)
+        rpow = 0;
+    }
+    return rpow;
+    Serial.print(micros());
+    Serial.print("\t");
+    Serial.println(rpulse);
+  }
+}
+
+void driveToSpot2() {
   static unsigned long timer = millis();
   int base;
   bool accel = 0;
@@ -134,10 +172,25 @@ void driveToSpot() {
     ctrlFrontServo(90);
     ctrlBackServo(90);
     base = (millis() - timer)/150*5;
-    base = constrain(base,0,80);
+    base = constrain(base,0,60);
     driveStraight(base,0.0);
     unsigned long cm = fsonar.read_cm();
     if(cm>15 && accel && lcount>12) {
+      return;
+    }
+  }
+}
+
+void driveToSpot() {
+  static unsigned long timer = millis();
+  lcount = 12;
+  while(1) {
+    updateHeading();
+    ctrlFrontServo(90);
+    ctrlBackServo(90);
+    driveStraight(60,0.0);
+    unsigned long cm = fsonar.read_cm();
+    if(cm>15 && lcount>12) {
       return;
     }
   }
@@ -164,6 +217,14 @@ void driveStraight(int base,float goal) {
   right.move(rpow);
 }
 
+void driveStraight(int base1,int base2,float goal) {
+  int val = imuDrive.compute(heading-goal,dps);
+  int lpow = base1 - val;
+  int rpow = base2 + val;
+  left.move(lpow);
+  right.move(rpow);
+}
+
 void pivotRight(float goal) {
   while(abs(heading-goal)>2) {
     ctrlFrontServo(0);
@@ -177,50 +238,48 @@ void pivotRight(float goal) {
   }
 }
 
-void pivotSpin(float goal) {
+void spinBursts(float goal) {
   unsigned long timer = millis();
+  unsigned long timer2 = millis();
+  bool state;
   while(millis() < timer + 500) {
-    if(abs(heading-goal)>2) {
+    float error = abs(heading-goal);
+    if(error>2) {
       timer = millis();
+    } else {
+      left.brake();
+      right.brake();
+      delay(10);
     }
     updateHeading();
     ctrlFrontServo(0);
     ctrlBackServo(0);
-    int lpow = encL.compute(lpulse-40000);
-    int rpow = encR.compute(rpulse-40000);
-    if(lpow<0)
-      lpow = 0;
-    if(rpow>0)
-      rpow = 0;
-    if(heading>goal) {
-      left.move(-lpow);
-      right.move(rpow);
-    } else {
-      left.move(lpow);
-      right.move(-rpow);
+    if(millis()>timer2) {
+      if(state) {
+        timer2 = millis()+90;
+      } else {
+        if(error>45) {
+          timer2 = millis()+map(error,40,120,80,180);
+        } else {
+          timer2 = millis()+10;
+        }
+      }
+      state = !state;
+      if(state) {
+        if(heading>goal) {
+          left.move(-195);
+          right.move(195);
+        } else {
+          left.move(195);
+          right.move(-195);
+        }
+      } else {
+        left.brake();
+        right.brake();
+      }
     }
   }
 }
-
-//void pivotSpin(float goal) {
-//  int base = 70;
-//  while(abs(heading-goal)>2) {
-//    updateHeading();
-//    ctrlFrontServo(0);
-//    ctrlBackServo(0);
-//    if(heading>goal) {
-//      left.move(-base);
-//      right.move(base);
-//    } else {
-//      left.move(base);
-//      right.move(-base);
-//    }
-//    if(micros()>ltimer+400000) {
-//      ltimer = micros();
-//      base+=8;
-//    }
-//  }
-//}
 
 void frontBump() {
   float orig_heading=heading;
